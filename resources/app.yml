@@ -1,0 +1,17 @@
+resources:
+  apps:
+    demo_table_viewer:
+      name: ${bundle.target}-demo-table-viewer
+      description: "Interactive Databricks Table Viewer with Catalog/Schema/Table Selection"
+      
+      # App source configuration
+      source_code_path: ${workspace.file_path}
+      
+      # Resources the app needs
+      resources:
+        - name: warehouse
+          description: "SQL Warehouse for querying tables"
+          sql_warehouse:
+            id: ${var.warehouse_id}
+            permission: CAN_USE
+

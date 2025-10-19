@@ -1,0 +1,136 @@
+name: Deploy Databricks App with DABS
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+      - develop
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+
+jobs:
+  deploy:
+    name: Deploy to Databricks
+    runs-on: ubuntu-latest
+    
+    # Set environment based on branch or manual input
+    environment: 
+      name: ${{ github.event.inputs.environment || (github.ref == 'refs/heads/main' && 'prod') || (github.ref == 'refs/heads/develop' && 'staging') || 'dev' }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      
+      - name: Install Databricks CLI
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sh
+      
+      - name: Verify Databricks CLI installation
+        run: |
+          databricks --version
+      
+      - name: Set deployment target
+        id: set-target
+        run: |
+          if [ "${{ github.event.inputs.environment }}" != "" ]; then
+            echo "target=${{ github.event.inputs.environment }}" >> $GITHUB_OUTPUT
+          elif [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            echo "target=prod" >> $GITHUB_OUTPUT
+          elif [ "${{ github.ref }}" = "refs/heads/develop" ]; then
+            echo "target=staging" >> $GITHUB_OUTPUT
+          else
+            echo "target=dev" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Configure Databricks CLI
+        env:
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+        run: |
+          # Configure Databricks CLI authentication
+          cat > ~/.databrickscfg << EOF
+          [DEFAULT]
+          host = $DATABRICKS_HOST
+          token = $DATABRICKS_TOKEN
+          EOF
+          
+          # Verify configuration
+          databricks current-user me
+      
+      - name: Validate Bundle
+        run: |
+          databricks bundle validate -t ${{ steps.set-target.outputs.target }}
+      
+      - name: Deploy Bundle
+        env:
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+          DATABRICKS_WAREHOUSE_ID: ${{ secrets.DATABRICKS_WAREHOUSE_ID }}
+        run: |
+          # Deploy bundle with warehouse ID variable
+          databricks bundle deploy -t ${{ steps.set-target.outputs.target }} \
+            --var="warehouse_id=$DATABRICKS_WAREHOUSE_ID"
+      
+      - name: Start App
+        run: |
+          # Start the deployed app
+          databricks bundle run -t ${{ steps.set-target.outputs.target }} demo_table_viewer
+      
+      - name: Run Tests (optional)
+        if: steps.set-target.outputs.target != 'prod'
+        run: |
+          echo "Running tests against deployed app..."
+          # Add your test commands here
+      
+      - name: Deployment Summary
+        run: |
+          echo "✅ Successfully deployed to ${{ steps.set-target.outputs.target }} environment"
+          echo "🚀 App Name: demo-table-viewer-${{ steps.set-target.outputs.target }}"
+          echo "🌐 Databricks Host: ${{ secrets.DATABRICKS_HOST }}"
+          echo "⚡ SQL Warehouse ID: ${{ secrets.DATABRICKS_WAREHOUSE_ID }}"
+
+  validate:
+    name: Validate Bundle Configuration
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Install Databricks CLI
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sh
+      
+      - name: Validate Bundle Syntax
+        run: |
+          databricks bundle validate -t dev
+      
+      - name: Validate Python Dependencies
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      
+      - name: Check Requirements
+        run: |
+          pip install -r requirements.txt
+          echo "✅ All dependencies are valid"
+

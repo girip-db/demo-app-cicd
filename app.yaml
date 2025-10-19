@@ -1,0 +1,11 @@
+# Databricks App Configuration
+# This file defines the app's runtime configuration
+
+command: ["streamlit", "run", "app.py"]
+
+env:
+  - name: STREAMLIT_SERVER_HEADLESS
+    value: "true"
+  - name: DATABRICKS_WAREHOUSE_ID
+    value: "a9c09471e8c02f2e"
+

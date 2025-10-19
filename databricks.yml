@@ -1,0 +1,56 @@
+# Databricks Asset Bundle (DAB) Configuration
+bundle:
+  name: demo-app-cicd
+
+# Include configuration for different environments
+include:
+  - resources/*.yml
+
+# Variables that can be overridden per environment
+variables:
+  warehouse_id:
+    description: The ID of the SQL warehouse to use
+    default: "a9c09471e8c02f2e"
+  service_principal_client_id:
+    description: Service principal client ID for production deployments
+    default: ""
+
+# Targets define different deployment environments
+targets:
+  # Development target
+  dev:
+    mode: development
+    default: true
+    workspace:
+      root_path: ~/.bundle/${bundle.name}/${bundle.target}
+    resources:
+      apps:
+        demo_table_viewer:
+          name: demo-table-viewer-dev
+          description: "Databricks Table Viewer App - Development"
+  
+  # Staging target
+  staging:
+    mode: development
+    workspace:
+      root_path: ~/.bundle/${bundle.name}/${bundle.target}
+    resources:
+      apps:
+        demo_table_viewer:
+          name: demo-table-viewer-staging
+          description: "Databricks Table Viewer App - Staging"
+  
+  # Production target
+  prod:
+    mode: production
+    workspace:
+      # Root path where bundle artifacts are stored
+      root_path: ~/.bundle/${bundle.name}/${bundle.target}
+    resources:
+      apps:
+        demo_table_viewer:
+          name: demo-table-viewer-prod
+          description: "Databricks Table Viewer App - Production"
+    run_as:
+      service_principal_name: ${var.service_principal_client_id}
+
